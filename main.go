@@ -3,13 +3,15 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 type Room struct {
 	Name     string
 	Entrance []string
-	Clothes  map[string][]Cloth
-	Things   map[string][]Thing
+	Clothes  map[string]Cloth
+	Things   map[string]Thing
 }
 
 type Human struct {
@@ -18,12 +20,15 @@ type Human struct {
 }
 
 type Cloth struct {
-	Name   string
-	Things map[string]Thing
+	Name     string
+	Capacity int
+	Where    string
+	Things   map[string]Thing
 }
 
 type Thing struct {
-	Name string
+	Name  string
+	Where string
 }
 
 type Rooms map[string]*Room
@@ -40,8 +45,8 @@ func NewRoom(name string, entrance []string) *Room {
 	r := new(Room)
 	r.Name = name
 	r.Entrance = entrance
-	r.Clothes = make(map[string][]Cloth)
-	r.Things = make(map[string][]Thing)
+	r.Clothes = make(map[string]Cloth)
+	r.Things = make(map[string]Thing)
 	return r
 }
 
@@ -82,54 +87,41 @@ func (h Human) PrintCanGo() {
 	fmt.Println("можно пойти в", strings.Join(h.Location.Entrance, ", "))
 }
 
-func (r *Room) AddClothes(where string, clothes ...string) {
+func (r *Room) AddClothes(clothes ...string) {
 	for _, cloth := range clothes {
-		r.Clothes[where] = append(r.Clothes[where], *NewCloth(cloth))
+		r.Clothes[cloth] = *NewCloth(cloth)
 	}
 }
 
 func (h Human) LookAround() {
 	fmt.Print("ты находишься в ", h.Location.Name, ". ")
-	for k, v := range h.Location.Clothes {
-		if len(v) > 0 {
-			fmt.Print(k, ": ", v)
-		}
+	if len(h.Location.Clothes) == 0 && len(h.Location.Things) == 0 {
+		fmt.Print("ничего интересного. ")
+	} else {
+		keys := maps.Keys(h.Location.Clothes)
+		keys = append(keys, maps.Keys(h.Location.Things)...)
+		fmt.Print("здесь есть: ", strings.Join(keys, ", "), ". ")
 	}
 	h.PrintCanGo()
 }
 
 func (h *Human) ToPutOn(cloth string) bool {
-	for k, v := range h.Location.Clothes {
-		for k1, v1 := range v {
-			if v1.Name == cloth {
-				h.PutOn = append(h.PutOn, v1)
-				h.Location.Clothes[k] = append(h.Location.Clothes[k][:k1], h.Location.Clothes[k][k1+1:]...)
-				return true
-			}
-		}
+	if v, ok := h.Location.Clothes[cloth]; ok {
+		h.PutOn = append(h.PutOn, v)
+		delete(h.Location.Clothes, cloth)
+		return true
 	}
 	return false
 }
 
-func (r *Room) AddThing(where string, things ...string) {
+func (r *Room) AddThing(things ...string) {
 	for _, thing := range things {
-		r.Things[where] = append(r.Things[where], *NewThing(thing))
+		r.Things[thing] = *NewThing(thing)
 	}
 }
 
 func (h *Human) Take(thing string) {
-	// if len(h.PutOn) == 0 {
-	// 	fmt.Println("некуда положить")
-	// 	return
-	// }
-	// for k, v := range h.Location.Things {
-	// 	for k1, v1 := range v {
-	// 		if v1.Name == thing {
-	// 			h.PutOn[0].Things[thing] = *NewThing(thing)
-	// 			h.Location.Things
-	// 		}
-	// 	}
-	// }
+
 }
 
 func init() {
@@ -137,8 +129,9 @@ func init() {
 	Locations.AddRoom("кухня", "коридор")
 	Locations.AddRoom("коридор", "кухня", "комната", "улица")
 	Locations.AddRoom("комната", "коридор")
-	Locations["комната"].AddClothes("на стуле", "рюкзак")
-	Locations["комната"].AddThing("на столе", "конспекты")
+	Locations["комната"].AddClothes("рюкзак")
+	Locations["комната"].AddThing("конспекты")
+	fmt.Println(Locations["комната"])
 	Locations.AddRoom("улица", "коридор")
 	User = *NewUser(*Locations["кухня"])
 }
