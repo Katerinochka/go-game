@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,6 +46,11 @@ type Rooms map[string]*Room
 
 var Locations Rooms
 var User Human
+
+var ErrThisIsNot = errors.New("здесь нет такого")
+var ErrNotAllDone = errors.New("здесь остались незаконченные дела.")
+var ErrNoCapacity = errors.New("некуда положить")
+var ErrNotTake = errors.New("вы не взяли этот предмет")
 
 func NewLocation() *Rooms {
 	locations := make(Rooms)
@@ -98,7 +104,7 @@ func (r *Rooms) AddRoom(name string, entrance ...string) {
 	(*r)[name] = room
 }
 
-func (h *Human) GoTo(room string) bool {
+func (h *Human) GoTo(room string) error {
 	for _, v := range h.Location.Entrance {
 		if v == room {
 			for _, v := range h.Location.AppliedItems {
@@ -106,16 +112,15 @@ func (h *Human) GoTo(room string) bool {
 					if v.Applied {
 						break
 					} else {
-						fmt.Print("не все сделано. ")
-						return false
+						return fmt.Errorf("%w нужно что-то сделать с элементом %s", ErrNotAllDone, v.Name)
 					}
 				}
 			}
 			h.Location = *Locations[room]
-			return true
+			return nil
 		}
 	}
-	return false
+	return fmt.Errorf("%w: %s", ErrThisIsNot, room)
 }
 
 func (h Human) PrintCanGo() {
@@ -140,14 +145,14 @@ func (h Human) LookAround() {
 	h.PrintCanGo()
 }
 
-func (h *Human) ToPutOn(cloth string) bool {
+func (h *Human) ToPutOn(cloth string) error {
 	if v, ok := h.Location.Clothes[cloth]; ok {
 		h.PutOn = append(h.PutOn, v)
 		h.Weight += v.Weight
 		delete(h.Location.Clothes, cloth)
-		return true
+		return nil
 	}
-	return false
+	return fmt.Errorf("%w: %s", ErrThisIsNot, cloth)
 }
 
 func (r *Room) AddThing(things ...*Thing) {
@@ -158,34 +163,31 @@ func (r *Room) AddThing(things ...*Thing) {
 	}
 }
 
-func (h *Human) ToTake(thing string) bool {
+func (h *Human) ToTake(thing string) error {
 	if v, ok := h.Location.Things[thing]; ok {
 		if h.Weight < v.Weight {
-			fmt.Println("некуда класть")
-			return false
+			return fmt.Errorf("%w %s", ErrNoCapacity, thing)
 		}
 		h.Take[v.Id] = v
 		h.Weight -= v.Weight
 		delete(h.Location.Things, thing)
-		return true
+		return nil
 	}
-	return false
+	return fmt.Errorf("%w: %s", ErrThisIsNot, thing)
 }
 
-func (h *Human) Apply(thing, appliedItem string) bool {
+func (h *Human) Apply(thing, appliedItem string) error {
 	if v, ok := h.Location.AppliedItems[appliedItem]; ok {
-		if v1, ok := h.Take[v.IdThing]; ok && v1.Name == thing{
+		if v1, ok := h.Take[v.IdThing]; ok && v1.Name == thing {
 			v.Applied = true
 			delete(h.Take, v1.Id)
 			h.Weight += v1.Weight
-			return true
+			return nil
 		} else {
-			fmt.Println("вы не взяли этот предмет: ", thing)
-			return false
+			return fmt.Errorf("%w: %s", ErrNotTake, thing)
 		}
 	} else {
-		fmt.Println("тут нет элемента", appliedItem)
-		return false
+		return fmt.Errorf("%w: %s", ErrThisIsNot, appliedItem)
 	}
 }
 
@@ -213,31 +215,33 @@ func main() {
 		switch command {
 		case "идти":
 			fmt.Scan(&parametr1)
-			if User.GoTo(parametr1) {
-				User.PrintCanGo()
+			if err := User.GoTo(parametr1); err != nil {
+				fmt.Println(err)
 			} else {
-				fmt.Println("нет такого")
+				User.PrintCanGo()
 			}
 		case "осмотреться":
 			User.LookAround()
 		case "надеть":
 			fmt.Scan(&parametr1)
-			if User.ToPutOn(parametr1) {
-				fmt.Println("Вы надели:", parametr1)
+			if err := User.ToPutOn(parametr1); err != nil {
+				fmt.Println(err)
 			} else {
-				fmt.Println("нет такого")
+				fmt.Println("Вы надели:", parametr1)
 			}
 		case "взять":
 			fmt.Scan(&parametr1)
-			if User.ToTake(parametr1) {
-				fmt.Println("Вы взяли:", parametr1)
+			if err := User.ToTake(parametr1); err != nil {
+				fmt.Println(err)
 			} else {
-				fmt.Println("нет такого")
+				fmt.Println("Вы взяли:", parametr1)
 			}
 		case "применить":
 			fmt.Scan(&parametr1)
 			fmt.Scan(&parametr2)
-			if User.Apply(parametr1, parametr2) {
+			if err := User.Apply(parametr1, parametr2); err != nil {
+				fmt.Println(err)
+			} else {
 				fmt.Println("получилось")
 			}
 		default:
